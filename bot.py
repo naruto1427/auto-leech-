@@ -4,19 +4,20 @@ from telethon import TelegramClient
 from datetime import datetime
 import os
 
-# ENV Variables for Render
+# ======== ENV VARIABLES =========
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
-SESSION = os.getenv("SESSION_NAME", "nyaa_userbot")
-GROUP_ID = int(os.getenv("GROUP_ID"))  # Target group ID (e.g., -1001234567890)
+SESSION_NAME = os.getenv("SESSION_NAME", "nyaa_userbot")
+GROUP_ID = int(os.getenv("GROUP_ID"))              # Your target group (where /lx goes)
+LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))  # Your logging channel ID
 
-# Use nyaa.si or nyaa.land
-RSS_URL = "https://nyaa.si/?page=rss"
+# ======== NYAA RSS CONFIG =========
+RSS_URL = "https://nyaa.si/?page=rss&c=1_2"  # Anime - English-translated category
 
-# Only post torrents with "1080p" and avoid reposting
+# Store seen torrent links
 seen_links = set()
 
-client = TelegramClient(SESSION, API_ID, API_HASH)
+client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
 async def fetch_and_send():
     global seen_links
@@ -29,16 +30,29 @@ async def fetch_and_send():
 
                 if "1080p" in title and link not in seen_links:
                     seen_links.add(link)
-                    msg = f"/lx {link}"
-                    await client.send_message(GROUP_ID, msg)
-            await asyncio.sleep(45)  # 1-minute polling
+
+                    # Send /lx link to group
+                    await client.send_message(GROUP_ID, f"/lx {link}")
+
+                    # Log nicely in the log channel
+                    log_msg = (
+                        "✅ **Posted New Torrent**\n"
+                        f"📝 **Title:** `{title}`\n"
+                        f"🔗 **Link:** [Open Torrent]({link})"
+                    )
+                    await client.send_message(LOG_CHANNEL_ID, log_msg, link_preview=False)
+
+                    print(f"[{datetime.now().isoformat()}] Sent: {title}")
+            await asyncio.sleep(60)
         except Exception as e:
-            print(f"[ERROR] {e}")
+            err = f"[ERROR] {datetime.now().isoformat()} - {e}"
+            print(err)
+            await client.send_message(LOG_CHANNEL_ID, f"❌ Error:\n`{str(e)}`")
             await asyncio.sleep(45)
 
 async def main():
     await client.start()
-    print(f"Logged in as {await client.get_me()}")
+    print("Logged in as:", (await client.get_me()).username)
     await fetch_and_send()
 
 with client:
